@@ -1,8 +1,6 @@
 """CR (Creative Brief) generation service using Claude API."""
 
-import anthropic
-
-from app.config import settings
+from app.services.ai_client import get_async_client, get_model_id
 
 
 async def generate_cr(
@@ -52,10 +50,10 @@ async def generate_cr(
 
     user_message = "\n\n".join(user_message_parts)
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_async_client()
 
     response = await client.messages.create(
-        model="claude-sonnet-4-5-20250514",
+        model=get_model_id(),
         max_tokens=4096,
         system=system_prompt,
         messages=[{"role": "user", "content": user_message}],

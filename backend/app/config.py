@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
 
+    # AWS Bedrock
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = "ap-northeast-1"
+    bedrock_model_id: str = "jp.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    use_bedrock: bool = True
+
     # Pinecone
     pinecone_api_key: str = ""
     pinecone_environment: str = "us-east-1"

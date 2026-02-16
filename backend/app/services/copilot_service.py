@@ -4,12 +4,11 @@ import json
 import uuid
 from collections.abc import AsyncGenerator
 
-import anthropic
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.models.knowledge_base import KnowledgeBase
+from app.services.ai_client import get_async_client, get_model_id
 from app.schemas.copilot import CopilotMessage, CopilotResponse
 
 
@@ -64,9 +63,9 @@ async def chat_sync(
     messages = [{"role": m.role, "content": m.content} for m in history]
     messages.append({"role": "user", "content": message})
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_async_client()
     response = await client.messages.create(
-        model="claude-sonnet-4-5-20250514",
+        model=get_model_id(),
         max_tokens=2048,
         system=_build_system_prompt(knowledge),
         messages=messages,
@@ -90,14 +89,14 @@ async def chat_stream(
     messages = [{"role": m.role, "content": m.content} for m in history]
     messages.append({"role": "user", "content": message})
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_async_client()
 
     # Send sources first
     sources = [k["title"] for k in knowledge]
     yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
     async with client.messages.stream(
-        model="claude-sonnet-4-5-20250514",
+        model=get_model_id(),
         max_tokens=2048,
         system=_build_system_prompt(knowledge),
         messages=messages,
