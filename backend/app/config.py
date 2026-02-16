@@ -12,15 +12,21 @@ class Settings(BaseSettings):
     app_name: str = "TTS CR Agent"
     debug: bool = False
 
-    # Database
+    # Database - Render provides DATABASE_URL; local uses individual vars
+    database_url_external: str = ""  # Render's DATABASE_URL mapped here
+
     postgres_user: str = "tts_cr_agent"
-    postgres_password: str = "localdevpassword"
+    postgres_password: str = ""
     postgres_db: str = "tts_cr_agent"
-    postgres_host: str = "db"
+    postgres_host: str = "localhost"
     postgres_port: int = 5432
 
     @property
     def database_url(self) -> str:
+        if self.database_url_external:
+            url = self.database_url_external
+            # Render gives postgresql://, asyncpg needs postgresql+asyncpg://
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
@@ -29,6 +35,10 @@ class Settings(BaseSettings):
     @property
     def database_url_sync(self) -> str:
         """Sync URL for Alembic migrations."""
+        if self.database_url_external:
+            url = self.database_url_external
+            # Ensure it starts with postgresql:// (not +asyncpg)
+            return url.replace("postgresql+asyncpg://", "postgresql://", 1)
         return (
             f"postgresql://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"

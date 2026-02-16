@@ -30,7 +30,8 @@ export default function Copilot() {
     setSources([]);
 
     try {
-      const response = await fetch("/api/v1/copilot/chat/stream", {
+      const apiBase = import.meta.env.VITE_API_URL || "/api/v1";
+      const response = await fetch(`${apiBase}/copilot/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
