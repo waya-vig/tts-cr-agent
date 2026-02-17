@@ -21,7 +21,7 @@ httpx>=0.28.0,<1.0.0
 # AI Services
 anthropic[bedrock]>=0.40.0,<1.0.0
 openai>=1.60.0,<2.0.0
-pinecone>=5.4.0,<7.0.0
+pinecone[asyncio]>=5.4.0,<7.0.0
 
 # Encryption (for TTS OAuth tokens)
 cryptography>=44.0.0,<45.0.0

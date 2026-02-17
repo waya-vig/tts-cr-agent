@@ -99,6 +99,12 @@ export interface CopilotMessage {
   content: string;
 }
 
+export interface Conversation {
+  id: string;
+  title: string;
+  updated_at: string;
+}
+
 export interface HealthStatus {
   status: string;
   version: string;

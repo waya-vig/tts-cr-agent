@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     pinecone_environment: str = "us-east-1"
     pinecone_index_name: str = "tts-cr-agent"
 
+    # Admin
+    admin_emails: list[str] = []
+
     # TikTok Shop
     tts_app_key: str = ""
     tts_app_secret: str = ""
