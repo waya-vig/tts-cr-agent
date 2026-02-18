@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
 import { useShopStore } from "../stores/shopStore";
-import type { CRGenerateRequest, CRGenerateResponse, CRProject } from "../types";
+import type { CRAIOutput, CRGenerateRequest, CRGenerateResponse, CRProject } from "../types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 
 export default function CRCreator() {
   const { shops, fetchShops, selectedShopId, selectShop } = useShopStore();
@@ -23,6 +24,12 @@ export default function CRCreator() {
   const [result, setResult] = useState<CRGenerateResponse | null>(null);
   const [error, setError] = useState("");
   const [projects, setProjects] = useState<CRProject[]>([]);
+
+  // Expandable project details
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedDetail, setExpandedDetail] = useState<CRAIOutput | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     fetchShops();
@@ -65,6 +72,52 @@ export default function CRCreator() {
       setError(msg);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleToggleExpand = async (projectId: string) => {
+    if (expandedId === projectId) {
+      setExpandedId(null);
+      setExpandedDetail(null);
+      return;
+    }
+
+    // Check if project already has ai_output in list data
+    const proj = projects.find((p) => p.id === projectId);
+    if (proj?.ai_output) {
+      setExpandedId(projectId);
+      setExpandedDetail(proj.ai_output);
+      return;
+    }
+
+    // Fetch detail from API
+    setLoadingDetail(true);
+    setExpandedId(projectId);
+    setExpandedDetail(null);
+    try {
+      const { data } = await api.get<CRProject>(`/cr/projects/${projectId}`);
+      setExpandedDetail(data.ai_output);
+    } catch {
+      setExpandedDetail(null);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const handleDelete = async (projectId: string) => {
+    if (!window.confirm("このプロジェクトを削除しますか？")) return;
+    setDeleting(projectId);
+    try {
+      await api.delete(`/cr/projects/${projectId}`);
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      if (expandedId === projectId) {
+        setExpandedId(null);
+        setExpandedDetail(null);
+      }
+    } catch {
+      // silent
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -187,16 +240,79 @@ export default function CRCreator() {
               <CardHeader>
                 <CardTitle>過去のプロジェクト</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2">
                 {projects.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between rounded-lg border border-border/30 p-3 transition-colors hover:bg-accent/50">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{p.product_name}</p>
-                      <p className="text-xs text-muted-foreground">{p.purpose} / {p.duration} / {new Date(p.created_at).toLocaleDateString("ja-JP")}</p>
+                  <div key={p.id} className="rounded-lg border border-border/30 transition-colors">
+                    {/* Project header - clickable */}
+                    <div
+                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-accent/50 rounded-lg"
+                      onClick={() => handleToggleExpand(p.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {expandedId === p.id ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{p.product_name}</p>
+                          <p className="text-xs text-muted-foreground">{p.purpose} / {p.duration} / {new Date(p.created_at).toLocaleDateString("ja-JP")}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={p.status === "generated" ? "default" : "secondary"}>
+                          {p.status === "generated" ? "生成済み" : p.status === "draft" ? "下書き" : p.status}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(p.id);
+                          }}
+                          disabled={deleting === p.id}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <Badge variant={p.status === "generated" ? "default" : "secondary"}>
-                      {p.status === "generated" ? "生成済み" : p.status === "draft" ? "下書き" : p.status}
-                    </Badge>
+
+                    {/* Expanded detail */}
+                    {expandedId === p.id && (
+                      <div className="border-t border-border/30 px-4 py-3 space-y-3 bg-accent/20 rounded-b-lg">
+                        {loadingDetail ? (
+                          <p className="text-sm text-muted-foreground animate-pulse">読み込み中...</p>
+                        ) : expandedDetail ? (
+                          <>
+                            <Section title="コンセプト" content={expandedDetail.concept} />
+                            <Separator className="bg-border/20" />
+                            <Section title="台本" content={expandedDetail.script} />
+                            {expandedDetail.hooks?.length > 0 && (
+                              <>
+                                <Separator className="bg-border/20" />
+                                <div>
+                                  <h3 className="text-sm font-semibold text-muted-foreground">フック候補</h3>
+                                  <div className="mt-1 space-y-1">
+                                    {expandedDetail.hooks.map((hook, i) => (
+                                      <div key={i} className="rounded-md bg-card/50 p-2 text-sm text-foreground">
+                                        <Badge variant="outline" className="mr-2 text-xs">候補 {i + 1}</Badge>
+                                        {hook}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                            <Separator className="bg-border/20" />
+                            <Section title="CTA" content={expandedDetail.cta} />
+                            <Section title="備考" content={expandedDetail.notes} />
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">ブリーフデータがありません。</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </CardContent>

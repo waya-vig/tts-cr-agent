@@ -21,8 +21,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("access_token");
-      window.location.href = "/login";
+      // Only force-redirect if this is NOT the /auth/me hydration call
+      // (hydrate() handles its own cleanup on 401)
+      const url = error.config?.url || "";
+      if (!url.endsWith("/auth/me")) {
+        localStorage.removeItem("access_token");
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

@@ -114,3 +114,75 @@ export interface HealthStatus {
 export interface ApiError {
   detail: string;
 }
+
+// FastMoss types
+
+export interface FastMossProduct {
+  product_id: string;
+  title: string;
+  image: string;
+  region: string;
+  price: string;
+  commission_rate: number;
+  day7_units_sold: number;
+  day7_gmv: number;
+  total_units_sold: number;
+  total_gmv: number;
+  creator_count: number;
+  video_count: number;
+  product_rating: number;
+  shop_name: string;
+  shop_avatar: string;
+  category_name: string;
+  fastmoss_url: string;
+  tiktok_url: string;
+}
+
+export interface FastMossVideo {
+  video_id: string;
+  product_id: string;
+  creator_uid: string;
+  cover: string;
+  description: string;
+  duration: string;
+  tiktok_url: string;
+  fastmoss_url: string;
+  play_count: string;
+  digg_count: string;
+  comment_count: string;
+  share_count: string;
+  sold_count: string;
+  sale_amount: string;
+  create_date: string;
+  region: string;
+  is_ad: string;
+}
+
+export interface FastMossCreator {
+  rank: number;
+  uid: string;
+  unique_id: string;
+  nickname: string;
+  avatar: string;
+  region: string;
+  category: string[];
+  follower_count: number;
+  product_count: number;
+  total_gmv: number;
+  currency: string;
+}
+
+export interface FastMossProductResponse {
+  total: number;
+  products: FastMossProduct[];
+}
+
+export interface FastMossVideoResponse {
+  total: number;
+  videos: FastMossVideo[];
+}
+
+export interface FastMossCreatorResponse {
+  total: number;
+  creators: FastMossCreator[];
+}

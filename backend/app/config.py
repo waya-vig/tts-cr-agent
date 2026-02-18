@@ -75,5 +75,10 @@ class Settings(BaseSettings):
     tts_app_key: str = ""
     tts_app_secret: str = ""
 
+    # FastMoss Open API
+    fastmoss_client_id: str = ""
+    fastmoss_client_secret: str = ""
+    fastmoss_base_url: str = "https://openapi.fastmoss.com"
+
 
 settings = Settings()

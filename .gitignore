@@ -21,6 +21,9 @@ frontend/.vite/
 .env.local
 .env.*.local
 
+# Vercel
+.vercel/
+
 # IDE
 .vscode/
 .idea/
