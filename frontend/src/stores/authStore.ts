@@ -37,12 +37,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Token exists — set it immediately so API interceptor can use it
     set({ token, isAuthenticated: true });
     try {
-      const res = await api.get<User>("/auth/me");
+      const res = await api.get<User>("/auth/me", { timeout: 15000 });
       set({ user: res.data, isHydrating: false });
-    } catch {
-      // Token expired or invalid — clear auth state
-      localStorage.removeItem("access_token");
-      set({ user: null, token: null, isAuthenticated: false, isHydrating: false });
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        // Token expired or invalid — clear auth state
+        localStorage.removeItem("access_token");
+        set({ user: null, token: null, isAuthenticated: false, isHydrating: false });
+      } else {
+        // Network error / timeout (e.g. Render cold start) — keep token and let user in
+        set({ isHydrating: false });
+      }
     }
   },
 }));
