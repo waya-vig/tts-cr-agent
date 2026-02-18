@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = ""
     aws_region: str = "ap-northeast-1"
     bedrock_model_id: str = "jp.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    bedrock_embedding_model_id: str = "cohere.embed-multilingual-v3"
     use_bedrock: bool = True
 
     # Pinecone

@@ -10,7 +10,6 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_MODEL_ID = "cohere.embed-multilingual-v3"
 EMBEDDING_DIMENSION = 1024
 
 # Module-level boto3 client singleton
@@ -38,7 +37,7 @@ def _invoke_embedding_sync(text: str, input_type: str) -> list[float]:
         "truncate": "END",
     })
     response = client.invoke_model(
-        modelId=EMBEDDING_MODEL_ID,
+        modelId=settings.bedrock_embedding_model_id,
         body=body,
         contentType="application/json",
         accept="application/json",
