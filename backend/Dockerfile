@@ -19,6 +19,10 @@ COPY --from=builder /install /usr/local
 # Copy application code
 COPY . .
 
+# Make start script executable
+RUN chmod +x start.sh
+
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run migrations then start server
+CMD ["./start.sh"]
