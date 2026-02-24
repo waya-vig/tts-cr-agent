@@ -300,11 +300,14 @@ export default function MarketIntelligence() {
                         className="h-12 w-12 rounded object-cover"
                         loading="lazy"
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const el = e.currentTarget;
+                          el.style.display = "none";
+                          el.parentElement?.classList.add("img-fallback");
+                        }}
                       />
                     ) : (
-                      <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
-                        <span className="text-muted-foreground text-xs">No img</span>
-                      </div>
+                      <div className="h-12 w-12 rounded bg-muted" />
                     )}
                   </TableCell>
                   <TableCell>
@@ -433,11 +436,12 @@ export default function MarketIntelligence() {
                   alt=""
                   className="h-20 w-20 rounded-lg object-cover shrink-0"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
                 />
               ) : (
-                <div className="h-20 w-20 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                  <span className="text-muted-foreground text-xs">No image</span>
-                </div>
+                <div className="h-20 w-20 rounded-lg bg-muted shrink-0" />
               )}
               <div>
                 <h2 className="text-lg font-bold text-foreground">{p.title}</h2>
