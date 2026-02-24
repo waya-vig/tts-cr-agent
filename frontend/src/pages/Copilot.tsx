@@ -98,7 +98,7 @@ export default function Copilot() {
     setSources([]);
 
     try {
-      const apiBase = import.meta.env.DEV ? "/api/v1" : `${import.meta.env.VITE_API_URL || "https://tts-cr-agent-api.onrender.com"}/api/v1`;
+      const apiBase = import.meta.env.DEV ? "/api/v1" : `${import.meta.env.VITE_API_URL || "https://zpmwn9i8vv.ap-northeast-1.awsapprunner.com"}/api/v1`;
       const response = await fetch(`${apiBase}/copilot/chat/stream`, {
         method: "POST",
         headers: {

@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.DEV ? "/api/v1" : `${import.meta.env.VITE_API_URL || "https://tts-cr-agent-api.onrender.com"}/api/v1`,
+  baseURL: import.meta.env.DEV ? "/api/v1" : `${import.meta.env.VITE_API_URL || "https://zpmwn9i8vv.ap-northeast-1.awsapprunner.com"}/api/v1`,
   headers: {
     "Content-Type": "application/json",
   },
