@@ -284,7 +284,7 @@ async def get_product_videos(
         "pagesize": actual_page_size,
     }
 
-    data = await _open_api_request("/product/v1/video", body)
+    data = await _open_api_request("/product/v1/videoList", body)
     if data and "list" in data:
         return _normalize_video_list(data)
 
