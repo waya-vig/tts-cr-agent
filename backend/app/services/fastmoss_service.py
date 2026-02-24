@@ -273,29 +273,7 @@ async def search_products(
 
     Note: Open API pagesize max is 10.
     """
-    # Open API max pagesize is 10
-    actual_page_size = min(page_size, 10)
-
-    # Build request body for Open API
-    body: dict[str, Any] = {
-        "filter": {"region": region},
-        "page": page,
-        "pagesize": actual_page_size,
-    }
-    if keywords:
-        body["keywords"] = keywords
-
-    # Sort: Open API uses orderby object
-    body["orderby"] = {sort_by: "desc"}
-
-    data = await _open_api_request("/product/v1/search", body)
-    if data and "list" in data:
-        result = _normalize_product_list_openapi(data)
-        # Open API doesn't return images — fetch from Web API to fill them in
-        await _enrich_product_images(result["products"], region, page, page_size, keywords, sort_by)
-        return result
-
-    # Fallback to web API
+    # Try Web API first (has product images)
     order_map = {
         "day7_units_sold": "2,2",
         "day7_gmv": "3,2",
@@ -317,6 +295,21 @@ async def search_products(
     data = await _web_api_request("/goods/V2/search", params)
     if data and "product_list" in data:
         return _normalize_product_list_webapi(data)
+
+    # Fallback to Open API (no images but official)
+    actual_page_size = min(page_size, 10)
+    body: dict[str, Any] = {
+        "filter": {"region": region},
+        "page": page,
+        "pagesize": actual_page_size,
+    }
+    if keywords:
+        body["keywords"] = keywords
+    body["orderby"] = {sort_by: "desc"}
+
+    data = await _open_api_request("/product/v1/search", body)
+    if data and "list" in data:
+        return _normalize_product_list_openapi(data)
 
     return {"total": 0, "products": []}
 
