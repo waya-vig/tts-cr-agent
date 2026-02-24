@@ -270,6 +270,7 @@ export default function MarketIntelligence() {
             <TableHeader>
               <TableRow className="border-border/50 hover:bg-transparent">
                 <TableHead className="w-12">#</TableHead>
+                <TableHead className="w-16">画像</TableHead>
                 <TableHead>商品名</TableHead>
                 <TableHead>カテゴリ</TableHead>
                 <TableHead className="text-right">価格</TableHead>
@@ -290,6 +291,20 @@ export default function MarketIntelligence() {
                 >
                   <TableCell className="text-muted-foreground">
                     {(page - 1) * PAGE_SIZE + i + 1}
+                  </TableCell>
+                  <TableCell>
+                    {p.image ? (
+                      <img
+                        src={p.image}
+                        alt=""
+                        className="h-12 w-12 rounded object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
+                        <span className="text-muted-foreground text-xs">No img</span>
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="min-w-0">
@@ -410,6 +425,17 @@ export default function MarketIntelligence() {
           {/* Header */}
           <div className="flex items-start justify-between border-b border-border/30 p-5">
             <div className="flex items-start gap-4 flex-1 min-w-0">
+              {p.image ? (
+                <img
+                  src={p.image}
+                  alt=""
+                  className="h-20 w-20 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <div className="h-20 w-20 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <span className="text-muted-foreground text-xs">No image</span>
+                </div>
+              )}
               <div>
                 <h2 className="text-lg font-bold text-foreground">{p.title}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
