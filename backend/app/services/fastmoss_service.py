@@ -202,6 +202,60 @@ async def _web_api_request(path: str, params: dict | None = None) -> dict | None
     return None
 
 
+# ========== Image enrichment ==========
+
+
+async def _enrich_product_images(
+    products: list[dict],
+    region: str,
+    page: int,
+    page_size: int,
+    keywords: str,
+    sort_by: str,
+) -> None:
+    """Fetch product images from Web API and merge into Open API results."""
+    if not products or all(p.get("image") for p in products):
+        return  # Already have images
+
+    try:
+        order_map = {
+            "day7_units_sold": "2,2",
+            "day7_gmv": "3,2",
+            "total_units_sold": "4,2",
+            "total_gmv": "5,2",
+            "commission_rate": "6,2",
+            "creator_count": "7,2",
+        }
+        order = order_map.get(sort_by, "2,2")
+        params: dict[str, Any] = {
+            "region": region,
+            "page": page,
+            "pagesize": page_size,
+            "order": order,
+        }
+        if keywords:
+            params["keyword"] = keywords
+
+        data = await _web_api_request("/goods/V2/search", params)
+        if not data or "product_list" not in data:
+            return
+
+        # Build image lookup by product_id
+        img_map: dict[str, str] = {}
+        for p in data["product_list"]:
+            pid = p.get("product_id", p.get("id", ""))
+            img = p.get("img", "")
+            if pid and img:
+                img_map[str(pid)] = img
+
+        # Merge images
+        for product in products:
+            if not product.get("image"):
+                product["image"] = img_map.get(product.get("product_id", ""), "")
+    except Exception as e:
+        logger.warning(f"Failed to enrich product images: {e}")
+
+
 # ========== Public API Functions ==========
 
 
@@ -236,7 +290,10 @@ async def search_products(
 
     data = await _open_api_request("/product/v1/search", body)
     if data and "list" in data:
-        return _normalize_product_list_openapi(data)
+        result = _normalize_product_list_openapi(data)
+        # Open API doesn't return images — fetch from Web API to fill them in
+        await _enrich_product_images(result["products"], region, page, page_size, keywords, sort_by)
+        return result
 
     # Fallback to web API
     order_map = {
@@ -344,11 +401,7 @@ async def get_top_ecommerce_creators(
 def _normalize_product_list_openapi(data: dict) -> dict[str, Any]:
     """Normalize Open API product search response."""
     products = []
-    raw_list = data.get("list", [])
-    if raw_list:
-        logger.info(f"FastMoss raw product keys: {list(raw_list[0].keys())}")
-        logger.info(f"FastMoss raw product sample: {json.dumps(raw_list[0], ensure_ascii=False)[:500]}")
-    for p in raw_list:
+    for p in data.get("list", []):
         shop = p.get("shop", {})
         category = p.get("category", {})
         # category can be nested: {"l1": {"name": "..."}, "l2": ...}
