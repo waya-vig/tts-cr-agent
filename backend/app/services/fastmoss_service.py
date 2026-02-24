@@ -444,6 +444,8 @@ def _normalize_product_list_webapi(data: dict) -> dict[str, Any]:
             "total_units_sold": p.get("sold_count", 0),
             "total_gmv": p.get("sale_amount", 0),
             "creator_count": p.get("relate_author_count", 0),
+            "video_count": p.get("relate_video_count", p.get("video_count", 0)),
+            "product_rating": _safe_number(p.get("product_rating", p.get("score", 0))),
             "shop_name": p.get("shop_name", ""),
             "shop_avatar": "",
             "category_name": (p.get("category_name_l1", []) or [""])[0] if isinstance(p.get("category_name_l1"), list) else p.get("category_name_l1", ""),

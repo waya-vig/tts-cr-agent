@@ -299,6 +299,7 @@ export default function MarketIntelligence() {
                         alt=""
                         className="h-12 w-12 rounded object-cover"
                         loading="lazy"
+                        referrerPolicy="no-referrer"
                       />
                     ) : (
                       <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
@@ -382,6 +383,7 @@ export default function MarketIntelligence() {
                           src={c.avatar}
                           alt=""
                           className="h-8 w-8 rounded-full object-cover shrink-0"
+                          referrerPolicy="no-referrer"
                         />
                       )}
                       <div>
@@ -430,6 +432,7 @@ export default function MarketIntelligence() {
                   src={p.image}
                   alt=""
                   className="h-20 w-20 rounded-lg object-cover shrink-0"
+                  referrerPolicy="no-referrer"
                 />
               ) : (
                 <div className="h-20 w-20 rounded-lg bg-muted flex items-center justify-center shrink-0">
@@ -515,6 +518,7 @@ export default function MarketIntelligence() {
                           src={v.cover}
                           alt=""
                           className="h-20 w-14 rounded object-cover"
+                          referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div className="h-20 w-14 rounded bg-muted flex items-center justify-center">
