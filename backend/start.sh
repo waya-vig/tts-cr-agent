@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-set -e
 
-# Run database migrations
+# Run database migrations (don't fail if DB is not ready yet)
 echo "Running database migrations..."
-alembic upgrade head
+alembic upgrade head || echo "WARNING: Migration failed, starting server anyway..."
 
 # Start the application
 echo "Starting server..."
