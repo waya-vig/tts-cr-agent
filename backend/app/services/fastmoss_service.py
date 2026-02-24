@@ -344,7 +344,11 @@ async def get_top_ecommerce_creators(
 def _normalize_product_list_openapi(data: dict) -> dict[str, Any]:
     """Normalize Open API product search response."""
     products = []
-    for p in data.get("list", []):
+    raw_list = data.get("list", [])
+    if raw_list:
+        logger.info(f"FastMoss raw product keys: {list(raw_list[0].keys())}")
+        logger.info(f"FastMoss raw product sample: {json.dumps(raw_list[0], ensure_ascii=False)[:500]}")
+    for p in raw_list:
         shop = p.get("shop", {})
         category = p.get("category", {})
         # category can be nested: {"l1": {"name": "..."}, "l2": ...}
