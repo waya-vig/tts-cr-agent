@@ -308,8 +308,6 @@ async def search_products(
         logger.info(f"Cache hit for {cache_key}")
         return cached
 
-    # --- Step 1: Fetch images from Web API (page 1 only, max 10 reliable) ---
-    image_map: dict[str, str] = {}
     order_map = {
         "day7_units_sold": "2,2",
         "day7_gmv": "3,2",
@@ -319,9 +317,10 @@ async def search_products(
         "creator_count": "7,2",
     }
     order = order_map.get(sort_by, "2,2")
+    api_page_size = 10
 
     if page == 1:
-        # Only fetch Web API images for the first page of results
+        # --- Page 1: Web API (first 10 with images) + Open API (remaining 40) ---
         web_params: dict[str, Any] = {
             "region": region,
             "page": 1,
@@ -330,80 +329,100 @@ async def search_products(
         }
         if keywords:
             web_params["keyword"] = keywords
-        web_data = await _web_api_request("/goods/V2/search", web_params)
+
+        # Fetch Web API + Open API pages 2-5 in parallel
+        async def _fetch_web():
+            return await _web_api_request("/goods/V2/search", web_params)
+
+        async def _fetch_open_page(pg: int):
+            body: dict[str, Any] = {
+                "filter": {"region": region},
+                "page": pg,
+                "pagesize": api_page_size,
+            }
+            if keywords:
+                body["keywords"] = keywords
+            body["orderby"] = {sort_by: "desc"}
+            return await _open_api_request("/product/v1/search", body)
+
+        # Web API for top 10, Open API pages 2-5 for remaining 40
+        tasks = [_fetch_web(), *[_fetch_open_page(pg) for pg in range(2, 6)]]
+        results = await asyncio.gather(*tasks)
+
+        web_data = results[0]
+        open_results = results[1:]
+
+        all_products: list[dict] = []
+        total = 0
+
+        # First 10: from Web API (has images)
+        web_ok = False
         if web_data and "product_list" in web_data:
             items = web_data["product_list"]
             if items and items[0].get("region", region).upper() == region.upper():
-                for p in items:
-                    pid = p.get("product_id", p.get("id", ""))
-                    img = p.get("img", "")
-                    if pid and img:
-                        image_map[str(pid)] = img
+                web_ok = True
+                total = web_data.get("total_cnt", web_data.get("total", 0))
+                normalized = _normalize_product_list_webapi(web_data)
+                all_products.extend(normalized["products"])
 
-    # --- Step 2: Fetch products from Open API (batched, 10 per request) ---
-    api_page_size = 10
-    # Calculate which Open API pages we need
-    # e.g. page=1, page_size=50 → Open API pages 1..5
-    # e.g. page=2, page_size=50 → Open API pages 6..10
-    start_api_page = (page - 1) * (page_size // api_page_size) + 1
-    num_batches = min(page_size // api_page_size, 5)  # max 5 parallel requests
+        # If Web API failed, use Open API page 1 instead
+        if not web_ok:
+            body_p1: dict[str, Any] = {
+                "filter": {"region": region},
+                "page": 1,
+                "pagesize": api_page_size,
+            }
+            if keywords:
+                body_p1["keywords"] = keywords
+            body_p1["orderby"] = {sort_by: "desc"}
+            data_p1 = await _open_api_request("/product/v1/search", body_p1)
+            if data_p1 and "list" in data_p1:
+                total = max(total, data_p1.get("total", 0))
+                normalized = _normalize_product_list_openapi(data_p1)
+                all_products.extend(normalized["products"])
 
-    async def _fetch_open_api_page(api_page: int) -> dict | None:
-        body: dict[str, Any] = {
-            "filter": {"region": region},
-            "page": api_page,
-            "pagesize": api_page_size,
-        }
-        if keywords:
-            body["keywords"] = keywords
-        body["orderby"] = {sort_by: "desc"}
-        return await _open_api_request("/product/v1/search", body)
+        # Remaining 40: from Open API pages 2-5
+        for data in open_results:
+            if data and "list" in data:
+                total = max(total, data.get("total", 0))
+                normalized = _normalize_product_list_openapi(data)
+                all_products.extend(normalized["products"])
 
-    # Fetch all pages in parallel
-    tasks = [_fetch_open_api_page(start_api_page + i) for i in range(num_batches)]
-    results = await asyncio.gather(*tasks)
+        if all_products:
+            result = {"total": total, "products": all_products}
+            _cache_set(cache_key, result)
+            return result
 
-    # Merge results
-    all_products: list[dict] = []
-    total = 0
-    for data in results:
-        if data and "list" in data:
-            total = max(total, data.get("total", 0))
-            for p in data["list"]:
-                shop = p.get("shop", {})
-                category = p.get("category", {})
-                if isinstance(category.get("l1"), dict):
-                    cat_name = category["l1"].get("name", "")
-                else:
-                    cat_name = category.get("l1_name", category.get("name", ""))
+    else:
+        # --- Page 2+: Open API only (5 batched requests) ---
+        start_api_page = (page - 1) * 5 + 1
 
-                pid = p.get("product_id", "")
-                product = {
-                    "product_id": pid,
-                    "title": p.get("title", ""),
-                    "image": image_map.get(pid, p.get("cover", p.get("image", ""))),
-                    "region": p.get("region", ""),
-                    "price": p.get("price", ""),
-                    "commission_rate": _safe_number(p.get("commission_rate", 0)),
-                    "day7_units_sold": _safe_number(p.get("day7_units_sold", 0)),
-                    "day7_gmv": _safe_number(p.get("day7_gmv", 0)),
-                    "total_units_sold": _safe_number(p.get("total_units_sold", 0)),
-                    "total_gmv": _safe_number(p.get("total_gmv", 0)),
-                    "creator_count": _safe_number(p.get("creator_count", 0)),
-                    "video_count": _safe_number(p.get("video_count", 0)),
-                    "product_rating": _safe_number(p.get("product_rating", 0)),
-                    "shop_name": shop.get("name", ""),
-                    "shop_avatar": shop.get("avatar", ""),
-                    "category_name": cat_name,
-                    "fastmoss_url": p.get("fastmoss_url", ""),
-                    "tiktok_url": p.get("tiktok_url", ""),
-                }
-                all_products.append(product)
+        async def _fetch_open_api_page(pg: int):
+            body: dict[str, Any] = {
+                "filter": {"region": region},
+                "page": pg,
+                "pagesize": api_page_size,
+            }
+            if keywords:
+                body["keywords"] = keywords
+            body["orderby"] = {sort_by: "desc"}
+            return await _open_api_request("/product/v1/search", body)
 
-    if all_products:
-        result = {"total": total, "products": all_products}
-        _cache_set(cache_key, result)
-        return result
+        tasks = [_fetch_open_api_page(start_api_page + i) for i in range(5)]
+        results = await asyncio.gather(*tasks)
+
+        all_products = []
+        total = 0
+        for data in results:
+            if data and "list" in data:
+                total = max(total, data.get("total", 0))
+                normalized = _normalize_product_list_openapi(data)
+                all_products.extend(normalized["products"])
+
+        if all_products:
+            result = {"total": total, "products": all_products}
+            _cache_set(cache_key, result)
+            return result
 
     return {"total": 0, "products": []}
 
