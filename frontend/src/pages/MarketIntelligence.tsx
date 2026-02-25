@@ -143,7 +143,7 @@ export default function MarketIntelligence() {
             params: {
               region,
               page,
-              page_size: 10,
+              page_size: 50,
               sort_by: productSort,
               keywords,
             },
@@ -227,7 +227,7 @@ export default function MarketIntelligence() {
     </div>
   );
 
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 50;
   const renderPagination = (total: number) => {
     const totalPages = Math.ceil(total / PAGE_SIZE);
     if (totalPages <= 1) return null;

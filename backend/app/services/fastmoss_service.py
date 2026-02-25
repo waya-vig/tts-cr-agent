@@ -262,7 +262,7 @@ async def _enrich_product_images(
 async def search_products(
     region: str = "JP",
     page: int = 1,
-    page_size: int = 10,
+    page_size: int = 50,
     keywords: str = "",
     sort_by: str = "day7_units_sold",
 ) -> dict[str, Any]:
@@ -271,9 +271,13 @@ async def search_products(
     sort_by options: day7_units_sold, day7_gmv, total_units_sold, total_gmv,
                      commission_rate, creator_count
 
-    Note: Open API pagesize max is 10.
+    Note: Open API pagesize max is 10, so we batch multiple requests.
+    Web API returns images but only reliable for first 10 JP products.
     """
-    # Try Web API first (has product images)
+    import asyncio
+
+    # --- Step 1: Fetch images from Web API (page 1 only, max 10 reliable) ---
+    image_map: dict[str, str] = {}
     order_map = {
         "day7_units_sold": "2,2",
         "day7_gmv": "3,2",
@@ -283,37 +287,89 @@ async def search_products(
         "creator_count": "7,2",
     }
     order = order_map.get(sort_by, "2,2")
-    params: dict[str, Any] = {
-        "region": region,
-        "page": page,
-        "pagesize": page_size,
-        "order": order,
-    }
-    if keywords:
-        params["keyword"] = keywords
 
-    data = await _web_api_request("/goods/V2/search", params)
-    if data and "product_list" in data:
-        # Verify region is correct (free tier may return wrong region on some pages)
-        items = data["product_list"]
-        if items and items[0].get("region", region).upper() == region.upper():
-            return _normalize_product_list_webapi(data)
-        logger.warning(f"Web API returned wrong region ({items[0].get('region')}) for {region} page {page}, falling back to Open API")
+    if page == 1:
+        # Only fetch Web API images for the first page of results
+        web_params: dict[str, Any] = {
+            "region": region,
+            "page": 1,
+            "pagesize": 10,
+            "order": order,
+        }
+        if keywords:
+            web_params["keyword"] = keywords
+        web_data = await _web_api_request("/goods/V2/search", web_params)
+        if web_data and "product_list" in web_data:
+            items = web_data["product_list"]
+            if items and items[0].get("region", region).upper() == region.upper():
+                for p in items:
+                    pid = p.get("product_id", p.get("id", ""))
+                    img = p.get("img", "")
+                    if pid and img:
+                        image_map[str(pid)] = img
 
-    # Fallback to Open API (no images but correct data)
-    actual_page_size = min(page_size, 10)
-    body: dict[str, Any] = {
-        "filter": {"region": region},
-        "page": page,
-        "pagesize": actual_page_size,
-    }
-    if keywords:
-        body["keywords"] = keywords
-    body["orderby"] = {sort_by: "desc"}
+    # --- Step 2: Fetch products from Open API (batched, 10 per request) ---
+    api_page_size = 10
+    # Calculate which Open API pages we need
+    # e.g. page=1, page_size=50 → Open API pages 1..5
+    # e.g. page=2, page_size=50 → Open API pages 6..10
+    start_api_page = (page - 1) * (page_size // api_page_size) + 1
+    num_batches = min(page_size // api_page_size, 5)  # max 5 parallel requests
 
-    data = await _open_api_request("/product/v1/search", body)
-    if data and "list" in data:
-        return _normalize_product_list_openapi(data)
+    async def _fetch_open_api_page(api_page: int) -> dict | None:
+        body: dict[str, Any] = {
+            "filter": {"region": region},
+            "page": api_page,
+            "pagesize": api_page_size,
+        }
+        if keywords:
+            body["keywords"] = keywords
+        body["orderby"] = {sort_by: "desc"}
+        return await _open_api_request("/product/v1/search", body)
+
+    # Fetch all pages in parallel
+    tasks = [_fetch_open_api_page(start_api_page + i) for i in range(num_batches)]
+    results = await asyncio.gather(*tasks)
+
+    # Merge results
+    all_products: list[dict] = []
+    total = 0
+    for data in results:
+        if data and "list" in data:
+            total = max(total, data.get("total", 0))
+            for p in data["list"]:
+                shop = p.get("shop", {})
+                category = p.get("category", {})
+                if isinstance(category.get("l1"), dict):
+                    cat_name = category["l1"].get("name", "")
+                else:
+                    cat_name = category.get("l1_name", category.get("name", ""))
+
+                pid = p.get("product_id", "")
+                product = {
+                    "product_id": pid,
+                    "title": p.get("title", ""),
+                    "image": image_map.get(pid, p.get("cover", p.get("image", ""))),
+                    "region": p.get("region", ""),
+                    "price": p.get("price", ""),
+                    "commission_rate": _safe_number(p.get("commission_rate", 0)),
+                    "day7_units_sold": _safe_number(p.get("day7_units_sold", 0)),
+                    "day7_gmv": _safe_number(p.get("day7_gmv", 0)),
+                    "total_units_sold": _safe_number(p.get("total_units_sold", 0)),
+                    "total_gmv": _safe_number(p.get("total_gmv", 0)),
+                    "creator_count": _safe_number(p.get("creator_count", 0)),
+                    "video_count": _safe_number(p.get("video_count", 0)),
+                    "product_rating": _safe_number(p.get("product_rating", 0)),
+                    "shop_name": shop.get("name", ""),
+                    "shop_avatar": shop.get("avatar", ""),
+                    "category_name": cat_name,
+                    "fastmoss_url": p.get("fastmoss_url", ""),
+                    "tiktok_url": p.get("tiktok_url", ""),
+                }
+                all_products.append(product)
+
+    if all_products:
+        return {"total": total, "products": all_products}
 
     return {"total": 0, "products": []}
 
