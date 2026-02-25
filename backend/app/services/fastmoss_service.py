@@ -10,6 +10,7 @@ Endpoints:
   - POST /creator/v1/rank/topEcommerce — Influencer sales ranking
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -22,6 +23,32 @@ import httpx
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# ---------- In-memory cache ----------
+
+_cache: dict[str, tuple[float, Any]] = {}
+CACHE_TTL = 300  # 5 minutes
+
+
+def _cache_get(key: str) -> Any | None:
+    """Get value from cache if not expired."""
+    if key in _cache:
+        expires_at, value = _cache[key]
+        if time.time() < expires_at:
+            return value
+        del _cache[key]
+    return None
+
+
+def _cache_set(key: str, value: Any, ttl: int = CACHE_TTL) -> None:
+    """Store value in cache with TTL."""
+    _cache[key] = (time.time() + ttl, value)
+    # Cleanup old entries (keep cache from growing unbounded)
+    if len(_cache) > 200:
+        now = time.time()
+        expired = [k for k, (exp, _) in _cache.items() if now >= exp]
+        for k in expired:
+            del _cache[k]
 
 # ---------- helpers ----------
 
@@ -273,8 +300,13 @@ async def search_products(
 
     Note: Open API pagesize max is 10, so we batch multiple requests.
     Web API returns images but only reliable for first 10 JP products.
+    Results are cached for 5 minutes to reduce API usage.
     """
-    import asyncio
+    cache_key = f"products:{region}:{page}:{page_size}:{sort_by}:{keywords}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        logger.info(f"Cache hit for {cache_key}")
+        return cached
 
     # --- Step 1: Fetch images from Web API (page 1 only, max 10 reliable) ---
     image_map: dict[str, str] = {}
@@ -369,7 +401,9 @@ async def search_products(
                 all_products.append(product)
 
     if all_products:
-        return {"total": total, "products": all_products}
+        result = {"total": total, "products": all_products}
+        _cache_set(cache_key, result)
+        return result
 
     return {"total": 0, "products": []}
 
@@ -384,6 +418,11 @@ async def get_product_videos(
 
     date_type: number of days (max 28)
     """
+    cache_key = f"videos:{product_id}:{date_type}:{page}:{page_size}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     actual_page_size = min(page_size, 10)
     body = {
         "filter": {
@@ -396,7 +435,9 @@ async def get_product_videos(
 
     data = await _open_api_request("/product/v1/videoList", body)
     if data and "list" in data:
-        return _normalize_video_list(data)
+        result = _normalize_video_list(data)
+        _cache_set(cache_key, result)
+        return result
 
     # No web API fallback for video list — Open API only
     return {"total": 0, "videos": []}
@@ -416,6 +457,11 @@ async def get_top_ecommerce_creators(
 
     Note: Open API pagesize max is 10.
     """
+    cache_key = f"creators:{region}:{page}:{page_size}:{date_type}:{date_value}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     actual_page_size = min(page_size, 10)
 
     # date_info is REQUIRED by the API
@@ -432,7 +478,9 @@ async def get_top_ecommerce_creators(
 
     data = await _open_api_request("/creator/v1/rank/topEcommerce", body)
     if data and "list" in data:
-        return _normalize_creator_ranking(data)
+        result = _normalize_creator_ranking(data)
+        _cache_set(cache_key, result)
+        return result
 
     # Fallback to web API
     web_params: dict[str, Any] = {
@@ -443,7 +491,9 @@ async def get_top_ecommerce_creators(
     }
     data = await _web_api_request("/author/search", web_params)
     if data and "author_list" in data:
-        return _normalize_creator_list_webapi(data)
+        result = _normalize_creator_list_webapi(data)
+        _cache_set(cache_key, result)
+        return result
 
     return {"total": 0, "creators": []}
 
