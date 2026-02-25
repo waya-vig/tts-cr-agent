@@ -33,6 +33,19 @@ import {
 
 type Tab = "products" | "creators";
 
+const API_BASE = import.meta.env.DEV
+  ? "/api/v1"
+  : `${import.meta.env.VITE_API_URL || "https://zpmwn9i8vv.ap-northeast-1.awsapprunner.com"}/api/v1`;
+
+function proxyImg(url: string | undefined): string {
+  if (!url) return "";
+  // Proxy FastMoss CDN images through our backend to avoid referrer blocking
+  if (url.includes("s.500fd.com") || url.includes("ibyteimg.com")) {
+    return `${API_BASE}/fastmoss/image-proxy?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 const REGIONS = [
   { value: "JP", label: "日本" },
   { value: "US", label: "アメリカ" },
@@ -295,7 +308,7 @@ export default function MarketIntelligence() {
                   <TableCell>
                     {p.image ? (
                       <img
-                        src={p.image}
+                        src={proxyImg(p.image)}
                         alt=""
                         className="h-12 w-12 rounded object-cover"
                         loading="lazy"
@@ -383,7 +396,7 @@ export default function MarketIntelligence() {
                     <div className="flex items-center gap-2">
                       {c.avatar && (
                         <img
-                          src={c.avatar}
+                          src={proxyImg(c.avatar)}
                           alt=""
                           className="h-8 w-8 rounded-full object-cover shrink-0"
                           referrerPolicy="no-referrer"
@@ -432,7 +445,7 @@ export default function MarketIntelligence() {
             <div className="flex items-start gap-4 flex-1 min-w-0">
               {p.image ? (
                 <img
-                  src={p.image}
+                  src={proxyImg(p.image)}
                   alt=""
                   className="h-20 w-20 rounded-lg object-cover shrink-0"
                   referrerPolicy="no-referrer"
@@ -519,7 +532,7 @@ export default function MarketIntelligence() {
                     <div className="relative shrink-0">
                       {v.cover ? (
                         <img
-                          src={v.cover}
+                          src={proxyImg(v.cover)}
                           alt=""
                           className="h-20 w-14 rounded object-cover"
                           referrerPolicy="no-referrer"

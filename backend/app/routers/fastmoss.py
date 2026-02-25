@@ -4,9 +4,12 @@ Endpoints:
   - GET /fastmoss/products          — Product search/ranking
   - GET /fastmoss/products/{id}/videos — Product related videos
   - GET /fastmoss/creators/ranking   — Top e-commerce creator ranking
+  - GET /fastmoss/image-proxy       — Proxy images from s.500fd.com
 """
 
+import httpx
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 
 from app.core.auth import get_current_user
 from app.models.user import User
@@ -71,3 +74,38 @@ async def get_creator_ranking(
         date_type=date_type,
         date_value=date_value,
     )
+
+
+@router.get("/image-proxy")
+async def image_proxy(
+    url: str = Query(..., description="Image URL to proxy"),
+):
+    """Proxy product images from FastMoss CDN to avoid referrer blocking."""
+    # Only allow proxying from known FastMoss image domains
+    allowed_hosts = ["s.500fd.com", "p16-oec-va.ibyteimg.com"]
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.hostname not in allowed_hosts:
+        return Response(status_code=403, content="Domain not allowed")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                    "Referer": "https://www.fastmoss.com/",
+                    "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                },
+            )
+            if resp.status_code == 200:
+                content_type = resp.headers.get("content-type", "image/jpeg")
+                return Response(
+                    content=resp.content,
+                    media_type=content_type,
+                    headers={"Cache-Control": "public, max-age=86400"},
+                )
+            return Response(status_code=resp.status_code, content="Image fetch failed")
+    except Exception:
+        return Response(status_code=502, content="Image proxy error")
