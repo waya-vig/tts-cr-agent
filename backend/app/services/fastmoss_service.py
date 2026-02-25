@@ -273,31 +273,34 @@ async def search_products(
 
     Note: Open API pagesize max is 10.
     """
-    # Web API only reliable for page 1 (page 2+ returns wrong region data)
-    if page == 1:
-        order_map = {
-            "day7_units_sold": "2,2",
-            "day7_gmv": "3,2",
-            "total_units_sold": "4,2",
-            "total_gmv": "5,2",
-            "commission_rate": "6,2",
-            "creator_count": "7,2",
-        }
-        order = order_map.get(sort_by, "2,2")
-        params: dict[str, Any] = {
-            "region": region,
-            "page": 1,
-            "pagesize": page_size,
-            "order": order,
-        }
-        if keywords:
-            params["keyword"] = keywords
+    # Try Web API first (has product images)
+    order_map = {
+        "day7_units_sold": "2,2",
+        "day7_gmv": "3,2",
+        "total_units_sold": "4,2",
+        "total_gmv": "5,2",
+        "commission_rate": "6,2",
+        "creator_count": "7,2",
+    }
+    order = order_map.get(sort_by, "2,2")
+    params: dict[str, Any] = {
+        "region": region,
+        "page": page,
+        "pagesize": page_size,
+        "order": order,
+    }
+    if keywords:
+        params["keyword"] = keywords
 
-        data = await _web_api_request("/goods/V2/search", params)
-        if data and "product_list" in data:
+    data = await _web_api_request("/goods/V2/search", params)
+    if data and "product_list" in data:
+        # Verify region is correct (free tier may return wrong region on some pages)
+        items = data["product_list"]
+        if items and items[0].get("region", region).upper() == region.upper():
             return _normalize_product_list_webapi(data)
+        logger.warning(f"Web API returned wrong region ({items[0].get('region')}) for {region} page {page}, falling back to Open API")
 
-    # Open API for page 2+ or Web API fallback
+    # Fallback to Open API (no images but correct data)
     actual_page_size = min(page_size, 10)
     body: dict[str, Any] = {
         "filter": {"region": region},
@@ -310,12 +313,7 @@ async def search_products(
 
     data = await _open_api_request("/product/v1/search", body)
     if data and "list" in data:
-        result = _normalize_product_list_openapi(data)
-        # Try to enrich with images from Web API
-        await _enrich_product_images(
-            result["products"], region, page, page_size, keywords, sort_by
-        )
-        return result
+        return _normalize_product_list_openapi(data)
 
     return {"total": 0, "products": []}
 
