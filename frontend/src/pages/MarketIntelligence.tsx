@@ -316,12 +316,16 @@ export default function MarketIntelligence() {
                         onError={(e) => {
                           const el = e.currentTarget;
                           el.style.display = "none";
-                          el.parentElement?.classList.add("img-fallback");
+                          if (el.nextElementSibling) (el.nextElementSibling as HTMLElement).style.display = "flex";
                         }}
                       />
-                    ) : (
-                      <div className="h-12 w-12 rounded bg-muted" />
-                    )}
+                    ) : null}
+                    <div
+                      className="h-12 w-12 rounded bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-lg font-bold text-primary/60"
+                      style={{ display: p.image ? "none" : "flex" }}
+                    >
+                      {(p.title || "?")[0]}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="min-w-0">
@@ -450,12 +454,18 @@ export default function MarketIntelligence() {
                   className="h-20 w-20 rounded-lg object-cover shrink-0"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
-                    e.currentTarget.style.display = "none";
+                    const el = e.currentTarget;
+                    el.style.display = "none";
+                    if (el.nextElementSibling) (el.nextElementSibling as HTMLElement).style.display = "flex";
                   }}
                 />
-              ) : (
-                <div className="h-20 w-20 rounded-lg bg-muted shrink-0" />
-              )}
+              ) : null}
+              <div
+                className="h-20 w-20 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-2xl font-bold text-primary/60 shrink-0"
+                style={{ display: p.image ? "none" : "flex" }}
+              >
+                {(p.title || "?")[0]}
+              </div>
               <div>
                 <h2 className="text-lg font-bold text-foreground">{p.title}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
