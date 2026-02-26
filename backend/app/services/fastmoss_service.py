@@ -309,13 +309,20 @@ async def search_products(
         return cached
 
     api_page_size = 10
+    order_map = {
+        "day7_units_sold": "2,2",
+        "day7_gmv": "3,2",
+        "total_units_sold": "4,2",
+        "total_gmv": "5,2",
+        "commission_rate": "6,2",
+        "creator_count": "7,2",
+    }
+    order = order_map.get(sort_by, "2,2")
+
     # Calculate Open API page range
-    # page=1, page_size=50 → Open API pages 1..5
-    # page=2, page_size=50 → Open API pages 6..10
     start_api_page = (page - 1) * (page_size // api_page_size) + 1
     num_batches = max(1, min(page_size // api_page_size, 5))
 
-    # --- Step 1: Fetch all products from Open API (batched) ---
     async def _fetch_open_page(pg: int) -> dict | None:
         body: dict[str, Any] = {
             "filter": {"region": region},
@@ -327,20 +334,7 @@ async def search_products(
         body["orderby"] = {sort_by: "desc"}
         return await _open_api_request("/product/v1/search", body)
 
-    # --- Step 2: Also fetch Web API for images (page 1 only) ---
-    async def _fetch_web_images() -> dict[str, str]:
-        """Fetch Web API to get product images, return {product_id: image_url}."""
-        if page != 1:
-            return {}
-        order_map = {
-            "day7_units_sold": "2,2",
-            "day7_gmv": "3,2",
-            "total_units_sold": "4,2",
-            "total_gmv": "5,2",
-            "commission_rate": "6,2",
-            "creator_count": "7,2",
-        }
-        order = order_map.get(sort_by, "2,2")
+    async def _fetch_web_page() -> dict | None:
         web_params: dict[str, Any] = {
             "region": region,
             "page": 1,
@@ -349,47 +343,70 @@ async def search_products(
         }
         if keywords:
             web_params["keyword"] = keywords
-        data = await _web_api_request("/goods/V2/search", web_params)
-        img_map: dict[str, str] = {}
-        if data and "product_list" in data:
-            items = data["product_list"]
-            # Verify region is correct
+        return await _web_api_request("/goods/V2/search", web_params)
+
+    if page == 1:
+        # --- Page 1: Web API first (10 with images) + Open API (deduped remainder) ---
+        # Fetch Web API + Open API pages 1-5 in parallel
+        open_tasks = [_fetch_open_page(i) for i in range(1, num_batches + 1)]
+        all_tasks = [_fetch_web_page(), *open_tasks]
+        results = await asyncio.gather(*all_tasks)
+
+        web_data = results[0]
+        open_results = results[1:]
+
+        all_products: list[dict] = []
+        seen_ids: set[str] = set()
+        total = 0
+
+        # First: Web API products (with images, guaranteed correct order)
+        web_ok = False
+        if web_data and "product_list" in web_data:
+            items = web_data["product_list"]
             if items and items[0].get("region", region).upper() == region.upper():
-                for p in items:
-                    pid = str(p.get("product_id", p.get("id", "")))
-                    img = p.get("img", "")
-                    if pid and img:
-                        img_map[pid] = img
-        return img_map
+                web_ok = True
+                total = web_data.get("total_cnt", web_data.get("total", 0))
+                normalized = _normalize_product_list_webapi(web_data)
+                for p in normalized["products"]:
+                    pid = p.get("product_id", "")
+                    if pid:
+                        seen_ids.add(pid)
+                    all_products.append(p)
 
-    # Fetch Open API pages + Web API images in parallel
-    open_tasks = [_fetch_open_page(start_api_page + i) for i in range(num_batches)]
-    all_tasks = [*open_tasks, _fetch_web_images()]
-    results = await asyncio.gather(*all_tasks)
+        # Then: Open API products, skipping duplicates
+        for data in open_results:
+            if data and "list" in data:
+                total = max(total, data.get("total", 0))
+                normalized = _normalize_product_list_openapi(data)
+                for p in normalized["products"]:
+                    pid = p.get("product_id", "")
+                    if pid not in seen_ids:
+                        seen_ids.add(pid)
+                        all_products.append(p)
 
-    open_results = results[:-1]
-    image_map: dict[str, str] = results[-1]  # type: ignore
+        # If Web API failed, we already have all Open API products
+        if all_products:
+            result = {"total": total, "products": all_products}
+            _cache_set(cache_key, result)
+            return result
 
-    # --- Step 3: Merge Open API results + enrich with Web API images ---
-    all_products: list[dict] = []
-    total = 0
-    for data in open_results:
-        if data and "list" in data:
-            total = max(total, data.get("total", 0))
-            normalized = _normalize_product_list_openapi(data)
-            all_products.extend(normalized["products"])
+    else:
+        # --- Page 2+: Open API only ---
+        tasks = [_fetch_open_page(start_api_page + i) for i in range(num_batches)]
+        results = await asyncio.gather(*tasks)
 
-    # Enrich with images from Web API
-    if image_map:
-        for product in all_products:
-            pid = product.get("product_id", "")
-            if pid in image_map:
-                product["image"] = image_map[pid]
+        all_products = []
+        total = 0
+        for data in results:
+            if data and "list" in data:
+                total = max(total, data.get("total", 0))
+                normalized = _normalize_product_list_openapi(data)
+                all_products.extend(normalized["products"])
 
-    if all_products:
-        result = {"total": total, "products": all_products}
-        _cache_set(cache_key, result)
-        return result
+        if all_products:
+            result = {"total": total, "products": all_products}
+            _cache_set(cache_key, result)
+            return result
 
     return {"total": 0, "products": []}
 
