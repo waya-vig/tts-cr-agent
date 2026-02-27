@@ -4,201 +4,273 @@
 TikTok Shopセラー向けのAIクリエイティブ制作支援SaaS。
 「縦型動画が作れない」セラーの課題を、市場データ×AIで解決する。
 
-### プロダクトの3本柱
-1. **CR制作支援 (Main)**: 売れてる動画データを基にAIが構成案・台本・フック生成
-2. **市場インテリジェンス**: トレンド・穴場商品・競合分析・広告CR分析
-3. **マルチアカウント管理**: 複数ブランドのTTSアカウントを横断管理・比較
-4. **Copilot (AI Chat)**: RAGベースの自然言語質問
+### プロダクトの柱
+1. **CR制作支援**: 売れてる動画データを基にAIが構成案・台本・フック生成
+2. **市場インテリジェンス**: FastMoss APIでトレンド商品・CR・インフルエンサー分析
+3. **Copilot (AI Chat)**: 2層RAG（共通+個人ナレッジ）ベースの自然言語アシスタント
+4. **ナレッジ管理**: ユーザー/管理者がナレッジを登録 → RAGで活用
+
+---
 
 ## Tech Stack
+
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19 + TypeScript + Vite 6 + Tailwind CSS 4 + Zustand 5 + React Router 7 |
-| Backend | Python 3.13 + FastAPI + async SQLAlchemy 2.0 + asyncpg |
-| Database | PostgreSQL 15 (Docker for local dev) |
-| Vector DB | Pinecone |
-| AI | Claude API (claude-sonnet-4-5) + OpenAI Embedding (text-embedding-3-small) |
-| Deploy | AWS (ECS Fargate + RDS + S3 + CloudFront) |
+| Frontend | React 18 + TypeScript + Vite 6 + Tailwind CSS + shadcn/ui + Zustand + React Router |
+| Backend | Python 3.13 + FastAPI + async SQLAlchemy 2.0 + asyncpg + Alembic |
+| Database | PostgreSQL (AWS RDS, db.t3.micro) |
+| Vector DB | Pinecone Serverless (us-east-1, cosine, 1024dim) |
+| AI/LLM | Amazon Bedrock Claude Sonnet 4.5 JP (`jp.anthropic.claude-sonnet-4-5-20250929-v1:0`) |
+| Embedding | Amazon Bedrock Cohere Embed Multilingual v3 (`cohere.embed-multilingual-v3`) |
+| Container | Docker (Python 3.13-slim, multi-stage build) → AWS ECR |
+| Frontend Hosting | AWS Amplify (GitHub auto-deploy) |
+| Backend Hosting | AWS App Runner (ECR auto-deploy) |
+| CI/CD | GitHub Actions → ECR push → App Runner auto-deploy |
+
+---
+
+## Infrastructure (ALL on AWS ap-northeast-1)
+
+### Production URLs
+- **Frontend**: `https://main.dkwittosus0ho.amplifyapp.com`
+- **Backend API**: `https://zpmwn9i8vv.ap-northeast-1.awsapprunner.com`
+- **Health Check**: `GET /api/v1/health`
+
+### AWS Resources
+| Service | Resource | ID/URI |
+|---------|----------|--------|
+| Amplify | Frontend app | `main.dkwittosus0ho.amplifyapp.com` |
+| App Runner | Backend service | `zpmwn9i8vv.ap-northeast-1.awsapprunner.com` |
+| RDS | PostgreSQL | `tts-cr-agent.cv4w8ouao9dl.ap-northeast-1.rds.amazonaws.com` |
+| ECR | Docker registry | `355511497793.dkr.ecr.ap-northeast-1.amazonaws.com/tts-cr-agent-api` |
+| IAM | Service user | `tts-cr-agent-bedrock` (Bedrock + ECR PowerUser) |
+
+**AWS Account**: `355511497793`
+
+### RDS PostgreSQL
+- Instance: `tts-cr-agent` (db.t3.micro, 20 GiB)
+- User: `postgres` / Password: `vig0808#` / DB: `tts_cr_agent`
+- Port: 5432, Public access: Yes
+- Security group: 0.0.0.0/0:5432 (for App Runner接続)
+- **重要**: パスワードに`#`があるためURL形式(`DATABASE_URL`)は使えない。個別のenv vars使用。
+
+### App Runner Environment Variables
+設定はApp Runnerコンソールで管理（コードには含まない）:
+```
+POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_HOST, POSTGRES_PORT
+SECRET_KEY, PINECONE_API_KEY
+FASTMOSS_CLIENT_ID, FASTMOSS_CLIENT_SECRET
+AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION=ap-northeast-1
+USE_BEDROCK=true
+BACKEND_CORS_ORIGINS=["https://main.dkwittosus0ho.amplifyapp.com","http://localhost:3000"]
+```
+
+### Amplify Environment Variables
+```
+VITE_API_URL=https://zpmwn9i8vv.ap-northeast-1.awsapprunner.com
+```
+
+---
+
+## CI/CD Pipeline
+
+### Backend (GitHub Actions → ECR → App Runner)
+```
+git push main (backend/**変更) → GitHub Actions → Docker build → ECR push → App Runner auto-deploy
+```
+- File: `.github/workflows/deploy-backend.yml`
+- GitHub Secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+
+### Frontend (GitHub → Amplify)
+```
+git push main → Amplify auto-build (npm ci && npm run build) → deploy
+```
+
+---
+
+## User Accounts (Production)
+
+| Account | Email | Password | Notes |
+|---------|-------|----------|-------|
+| Test | test@example.com | password123 | テスト用 |
+| Staff | staff@vig.co.jp | VigStaff2024 | 社員用 |
+
+---
 
 ## Project Structure
 ```
 tts-cr-agent/
-├── backend/                    # Python + FastAPI
+├── backend/
 │   ├── app/
-│   │   ├── main.py            # FastAPI entry point
-│   │   ├── config.py          # pydantic-settings configuration
-│   │   ├── models/            # SQLAlchemy ORM models (1 file per table)
-│   │   │   ├── user.py        # users table
-│   │   │   ├── shop.py        # shops table (multi-account)
-│   │   │   ├── cr_project.py  # cr_projects table (main feature)
-│   │   │   ├── trend_product.py
-│   │   │   ├── creator.py
-│   │   │   └── knowledge_base.py  # RAG knowledge entries
-│   │   ├── schemas/           # Pydantic request/response schemas
-│   │   ├── routers/           # API endpoint routers
-│   │   │   ├── health.py      # GET /api/v1/health
-│   │   │   ├── auth.py        # POST register/login, GET /me
-│   │   │   ├── shops.py       # Shop CRUD (list/create/get/update/delete)
-│   │   │   ├── cr.py          # CR generation + project management
-│   │   │   ├── market.py      # Market trends + hidden gems
-│   │   │   ├── knowledge.py   # Knowledge base CRUD
-│   │   │   └── copilot.py     # Copilot chat (sync + streaming)
-│   │   ├── services/          # Business logic layer
-│   │   │   ├── cr_generator.py    # Claude API CR generation
-│   │   │   └── copilot_service.py # RAG chat + streaming
+│   │   ├── main.py              # FastAPI entry
+│   │   ├── config.py            # pydantic-settings (env vars)
+│   │   ├── models/              # SQLAlchemy ORM
+│   │   │   ├── user.py          # users (UUID, email, password, is_admin)
+│   │   │   ├── conversation.py  # conversations + chat_messages
+│   │   │   ├── knowledge_base.py    # per-user knowledge
+│   │   │   ├── global_knowledge.py  # admin global knowledge
+│   │   │   ├── cr_project.py    # CR projects (JSONB ai_output)
+│   │   │   ├── creator.py       # creator profiles
+│   │   │   ├── shop.py          # TikTok Shop connections
+│   │   │   └── trend_product.py # trending product cache
+│   │   ├── routers/
+│   │   │   ├── auth.py          # login/register/me
+│   │   │   ├── copilot.py       # AI chat (sync + SSE streaming)
+│   │   │   ├── fastmoss.py      # FastMoss search + image proxy
+│   │   │   ├── knowledge.py     # per-user knowledge CRUD
+│   │   │   ├── admin_knowledge.py   # global knowledge CRUD
+│   │   │   ├── cr.py            # CR project management
+│   │   │   ├── market.py        # market analysis
+│   │   │   ├── shops.py         # TikTok Shop management
+│   │   │   └── health.py        # health check
+│   │   ├── services/
+│   │   │   ├── copilot_service.py   # RAG chat + streaming
+│   │   │   ├── cr_generator.py      # Claude CR generation
+│   │   │   ├── fastmoss_service.py  # FastMoss Open/Web API client
+│   │   │   ├── embedding_service.py # Bedrock Cohere embeddings
+│   │   │   ├── pinecone_service.py  # Pinecone vector ops
+│   │   │   └── ai_client.py        # Bedrock client factory
 │   │   ├── core/
-│   │   │   ├── auth.py        # get_current_user dependency
-│   │   │   ├── security.py    # bcrypt + JWT
-│   │   │   └── database.py    # async engine + session
-│   │   └── migrations/        # Alembic migration scripts
-│   ├── alembic.ini
+│   │   │   ├── auth.py          # get_current_user dependency
+│   │   │   ├── security.py      # bcrypt + JWT
+│   │   │   └── database.py      # async engine + session
+│   │   └── migrations/          # Alembic
+│   ├── start.sh                 # Docker entrypoint (migrate + start)
+│   ├── Dockerfile               # Multi-stage Python 3.13
 │   ├── requirements.txt
-│   └── Dockerfile             # Multi-stage build
-├── frontend/                   # React + TypeScript
+│   └── alembic.ini
+├── frontend/
 │   ├── src/
-│   │   ├── components/        # Layout, Sidebar, ProtectedRoute
-│   │   ├── pages/             # Dashboard, CRCreator, MarketIntelligence, KnowledgeManager, Login, Copilot
-│   │   ├── hooks/             # useAuth
-│   │   ├── services/api.ts    # Axios + JWT interceptor
-│   │   ├── stores/            # Zustand state stores (authStore, shopStore)
-│   │   ├── types/index.ts     # Shared TypeScript types
-│   │   ├── App.tsx            # React Router config
-│   │   └── main.tsx           # Entry point
+│   │   ├── pages/               # Login, Dashboard, MarketIntelligence,
+│   │   │                        # CRCreator, Copilot, KnowledgeManager
+│   │   ├── components/          # Layout, Sidebar, ProtectedRoute, ui/
+│   │   ├── services/api.ts      # Axios + JWT interceptor
+│   │   ├── stores/              # authStore, shopStore (Zustand)
+│   │   ├── types/index.ts       # TypeScript interfaces
+│   │   └── App.tsx              # React Router config
 │   ├── package.json
-│   ├── vite.config.ts
-│   └── Dockerfile             # Multi-stage build
-├── infra/
-│   ├── docker-compose.yml     # PostgreSQL + Backend + Frontend
-│   └── aws/
-├── .env.example
-├── CLAUDE.md                  # This file
-└── README.md
+│   └── vite.config.ts
+├── .github/workflows/
+│   └── deploy-backend.yml       # ECR push workflow
+└── CLAUDE.md                    # THIS FILE
 ```
 
-## Development Commands
-```bash
-# === First Time Setup ===
-cp .env.example .env           # Edit with your API keys
-docker compose -f infra/docker-compose.yml up --build
+---
 
-# === Run Migrations ===
-docker compose -f infra/docker-compose.yml exec backend alembic revision --autogenerate -m "description"
-docker compose -f infra/docker-compose.yml exec backend alembic upgrade head
+## External APIs
 
-# === Individual Services ===
-# Backend only (from /backend)
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+### FastMoss (TikTok Shop Analytics)
 
-# Frontend only (from /frontend)
-npm install
-npm run dev
+**Open API** (`https://openapi.fastmoss.com`):
+- Auth: client_id/secret + SHA256 signature
+- `POST /product/v1/search` - 商品検索 (pagesize max 10)
+- `POST /product/v1/videoList` - 商品関連動画 (⚠️ `/video`ではなく`/videoList`)
+- `POST /creator/v1/rank/topEcommerce` - クリエイターランキング
 
-# === Testing ===
-cd backend && pytest
-cd frontend && npm test
+**Web API** (`https://www.fastmoss.com/api/`):
+- Auth: なし（anti-bot params: `_time` + `cnonce`）
+- `GET /goods/V2/search` - 商品検索（`img`フィールドあり！）
+- `GET /author/search` - クリエイター検索
+
+#### FastMoss制限事項（無料プラン）
+- Open API: pagesize最大10、商品画像なし
+- Web API: JP正確なデータは先頭10件のみ（2ページ目以降はUSデータに化ける場合あり）
+- `s.500fd.com` CDN: ブラウザ直アクセスだとリファラーチェックでブロック
+  - **解決策**: バックエンド画像プロキシ `GET /fastmoss/image-proxy?url=...`
+
+#### 現在の商品取得戦略
+1. **1ページ目（50件）**: Web API top 10（画像あり）を先頭配置 → Open API pages 1-5から重複除外して追加
+2. **2ページ目以降**: Open APIのみ（画像なし → 頭文字アイコン）
+3. **5分間インメモリキャッシュ** でAPI枠節約
+4. **画像プロキシ** + ブラウザキャッシュ24時間
+
+### TikTok Shop API
+- アプリ作成済みだが**リジェクト**された
+- 再申請に必要:
+  1. Login Kit設定（Redirect URI）
+  2. Sandboxでの動画デモ
+  3. 全Scopeのデモンストレーション
+- **Status: PENDING**
+
+---
+
+## RAG Architecture
+
+```
+User Query
+  → Bedrock Cohere Embed v3 (1024dim, input_type="search_query")
+  → Pinecone Query (parallel)
+      ├── "global" namespace (admin knowledge, top_k=3)
+      └── "{user_id}" namespace (personal knowledge, top_k=3)
+  → Top matches merged into system prompt
+  → Bedrock Claude Sonnet 4.5 → Response (streaming SSE)
 ```
 
-## Database Schema (6 tables)
-```
-users (1) --< shops (N) --< cr_projects (N)
-users (1) --< knowledge_base (N) --> pinecone_vectors
-trend_products (global, shared across users)
-creators (global + per user bookmarks)
-```
+- **Index**: `tts-cr-agent` (Pinecone Serverless, AWS us-east-1, cosine)
+- **Dimension**: 1024
+- **Fallback**: Pinecone unavailable時はDBテキスト検索
+- **Status**: 基本実装完了。ナレッジ追加で強化必要。
 
-### Key Tables
-- **users**: UUID PK, email, password_hash, company_name, plan (free/starter/pro/enterprise)
-- **shops**: Multi-account TTS shops per user. OAuth tokens AES-256 encrypted
-- **cr_projects**: Main feature. AI output stored as JSONB (構成案/台本/フック)
-- **trend_products**: FastMoss + TTS API market data
-- **creators**: TikTok Shop creator profiles for matching
-- **knowledge_base**: RAG entries with Pinecone vector references
+---
 
-## API Convention
-- All endpoints prefixed with `/api/v1/`
-- Auth via JWT Bearer tokens (access: 30min)
-- JSON responses with error format: `{"detail": "error message"}`
-- Pagination: `?skip=0&limit=20`
+## Key Technical Decisions & Gotchas
 
-### Implemented Endpoints
-- `GET /` - Welcome message
-- `GET /api/v1/health` - Health check with DB status
-- `POST /api/v1/auth/register` - User registration
-- `POST /api/v1/auth/login` - Login (returns JWT)
-- `GET /api/v1/auth/me` - Current user profile
+### DBパスワードの`#`問題
+`vig0808#` の `#` がURL形式だとフラグメントとして解釈される。
+→ `DATABASE_URL` ではなく個別env vars (`POSTGRES_USER`, `POSTGRES_PASSWORD`等) を使用。
 
-### Implemented Endpoints (Phase 2)
-- `GET /api/v1/shops/` - List user's shops
-- `POST /api/v1/shops/` - Create shop
-- `GET /api/v1/shops/{id}` - Get shop
-- `PATCH /api/v1/shops/{id}` - Update shop
-- `DELETE /api/v1/shops/{id}` - Delete shop
-- `GET /api/v1/cr/projects` - List CR projects
-- `GET /api/v1/cr/projects/{id}` - Get CR project
-- `POST /api/v1/cr/generate` - Generate CR (Claude API)
-- `DELETE /api/v1/cr/projects/{id}` - Delete CR project
-- `GET /api/v1/market/trends` - Trending products
-- `GET /api/v1/market/hidden-gems` - Hidden gem products
-- `GET /api/v1/knowledge/` - List knowledge entries
-- `POST /api/v1/knowledge/` - Create knowledge entry
-- `GET /api/v1/knowledge/{id}` - Get knowledge entry
-- `PATCH /api/v1/knowledge/{id}` - Update knowledge entry
-- `DELETE /api/v1/knowledge/{id}` - Delete knowledge entry
-- `POST /api/v1/copilot/chat` - Copilot chat (sync)
-- `POST /api/v1/copilot/chat/stream` - Copilot chat (SSE streaming)
+### App Runner デプロイ方式
+ソースコード直接デプロイは失敗（asyncpg/cryptographyのC拡張コンパイル不可）。
+→ ECR Docker imageデプロイを採用。
+
+### Frontend API URL
+- Dev: Vite proxy `/api/v1` → localhost:8000
+- Prod: `VITE_API_URL` env → App Runner URL
+- **注意**: `api.ts`（Axios）と`Copilot.tsx`（streaming fetch）の両方にURLが必要。
+
+### Auth/Hydration
+- `authStore.ts`: `/auth/me` に15秒タイムアウト
+- ネットワークエラー: token保持してユーザー通す（ログアウトしない）
+- 401: token削除してログアウト
+- これによりApp Runner cold start時のスピナー問題を解消。
+
+### Copilot System Prompt
+- 日本語、絵文字積極使用（🔥✅💡📌🎯）
+- フレンドリーなトーン
+- 設定は `copilot_service.py` 内
+
+---
 
 ## Coding Conventions
-- **Backend**: snake_case, type hints on all functions, async endpoints, Pydantic schemas for all I/O
-- **Frontend**: camelCase for variables/functions, PascalCase for components
-- **Database**: All changes via Alembic migrations, no raw SQL, SQLAlchemy ORM only
-- **State Management**: Zustand stores (not Redux)
-- **Styling**: Tailwind CSS v4 utility classes, no custom CSS unless necessary
+- **Backend**: snake_case, 全関数にtype hints, async endpoints, Pydantic schemas
+- **Frontend**: camelCase変数, PascalCase components, shadcn/ui, Tailwind utility classes
+- **Database**: Alembic migration必須, SQLAlchemy ORMのみ（raw SQLなし）
+- **State**: Zustand stores（Reduxは不使用）
+- **Git**: mainブランチ直接push → 自動デプロイ
 
-## Current Status
-- [x] Project scaffolding complete
-- [x] Backend: FastAPI + config + database + security + auth
-- [x] Backend: All 6 SQLAlchemy models
-- [x] Backend: Auth endpoints (register/login/me)
-- [x] Backend: Health check endpoint
-- [x] Backend: Alembic migration setup
-- [x] Backend: Shop CRUD endpoints (list/create/get/update/delete)
-- [x] Backend: CR Creator endpoint (Claude API integration for generate)
-- [x] Backend: Market Intelligence endpoints (trends + hidden gems)
-- [x] Backend: Knowledge Base CRUD endpoints
-- [x] Backend: Copilot Chat (sync + SSE streaming)
-- [x] Backend: CR Generator service (Claude API prompt engineering)
-- [x] Backend: Copilot service (knowledge retrieval + Claude chat)
-- [x] Frontend: React + TypeScript + Vite + Tailwind
-- [x] Frontend: Login page with API integration (register/login)
-- [x] Frontend: ProtectedRoute + auth hydration
-- [x] Frontend: Dashboard with stats cards + recent projects + shops
-- [x] Frontend: CR Creator form (full form + AI generation + results display)
-- [x] Frontend: Market Intelligence (trends/hidden-gems tabs + market filter)
-- [x] Frontend: Knowledge Manager (CRUD + category filter)
-- [x] Frontend: Copilot Chat (streaming SSE + fallback sync)
-- [x] Frontend: Sidebar navigation with Copilot + logout
-- [x] Frontend: Shop store (Zustand) + Auth store (Zustand)
-- [x] Frontend: Expanded TypeScript types for all entities
-- [x] Docker Compose (PostgreSQL + Backend + Frontend)
-- [ ] Run initial Alembic migration (need Docker running)
-- [ ] TTS OAuth flow (shop token exchange)
-- [ ] FastMoss data pipeline (Excel import to trend_products)
-- [ ] Pinecone vector search integration (replace keyword retrieval)
-- [ ] OpenAI embedding generation for knowledge entries
-- [ ] Tests (backend pytest + frontend vitest)
+---
 
-## Next Steps (Priority Order)
-1. `docker compose up --build` → verify all services start
-2. Run `alembic revision --autogenerate -m "initial_tables"` → `alembic upgrade head`
-3. TTS OAuth flow (shop token exchange with TikTok Shop API)
-4. FastMoss data pipeline (Excel import to populate trend_products)
-5. Pinecone vector integration (replace keyword knowledge retrieval)
-6. OpenAI embedding on knowledge create/update
-7. Tests (backend unit tests + frontend component tests)
+## Development Setup
 
-## Architecture Notes
-- **Async throughout**: asyncpg + async SQLAlchemy + async FastAPI for handling concurrent AI API calls
-- **Multi-tenant**: Row-level security via user_id foreign keys
-- **JSONB for flexible data**: ai_output, performance_data, reference_videos, categories, past_products
-- **Feedback loop**: CR performance data feeds back into RAG knowledge base
+```bash
+# Backend
+cd backend
+cp .env.example .env  # API keyを記入
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+
+# Frontend
+cd frontend
+npm install
+npm run dev  # http://localhost:3000 (Vite proxy → :8000)
+```
+
+---
+
+## Pending Tasks
+- [ ] TikTok Shop API再申請（Login Kit + Sandbox demo + 全Scope）
+- [ ] RAGナレッジ強化（共通ナレッジの充実）
+- [ ] Vercel / Render 旧アカウント削除
+- [ ] カスタムドメイン設定（Amplify対応）
+- [ ] テスト追加（pytest + vitest）
