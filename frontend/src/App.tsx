@@ -8,6 +8,8 @@ import MarketIntelligence from "./pages/MarketIntelligence";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import Copilot from "./pages/Copilot";
 import Login from "./pages/Login";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 import { useAuthStore } from "./stores/authStore";
 
 export default function App() {
@@ -21,6 +23,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route
           path="/"
           element={
