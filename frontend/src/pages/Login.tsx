@@ -64,7 +64,10 @@ export default function Login() {
             <img src="/vigsella-logo.png" alt="vigSella" className="h-12 w-12 rounded" />
           </div>
           <CardTitle className="text-2xl font-bold">vigSella</CardTitle>
-          <CardDescription>
+          <p className="text-xs text-muted-foreground mt-1">
+            AI-powered creative production tool for TikTok Shop sellers
+          </p>
+          <CardDescription className="mt-2">
             {isRegister ? "アカウントを作成" : "アカウントにログイン"}
           </CardDescription>
         </CardHeader>
@@ -137,9 +140,9 @@ export default function Login() {
             </Button>
           </p>
           <div className="flex gap-3 text-xs text-muted-foreground">
-            <a href="/terms" className="hover:underline">利用規約</a>
+            <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:underline">Terms of Service</a>
             <span>|</span>
-            <a href="/privacy" className="hover:underline">プライバシーポリシー</a>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:underline">Privacy Policy</a>
           </div>
         </CardFooter>
       </Card>

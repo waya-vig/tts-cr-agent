@@ -7,7 +7,7 @@ export default function Terms() {
 
         <h2>1. サービスの概要</h2>
         <p>
-          TTS CR Agent（以下「本サービス」）は、TikTok
+          vigSella（以下「本サービス」）は、Vig Inc.が提供するTikTok
           Shopセラー向けのAIクリエイティブ制作支援SaaSです。市場データ分析、AI構成案・台本生成、ナレッジ管理などの機能を提供します。
         </p>
 
