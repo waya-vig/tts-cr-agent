@@ -43,7 +43,7 @@ export default function Login() {
       });
 
       setAuth(user, tokenData.access_token);
-      navigate("/");
+      navigate("/dashboard");
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data

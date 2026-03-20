@@ -13,11 +13,11 @@ import {
 } from "lucide-react";
 
 const navigation = [
-  { name: "ダッシュボード", path: "/", icon: LayoutDashboard },
-  { name: "CR作成", path: "/cr-creator", icon: Clapperboard },
-  { name: "市場分析", path: "/market", icon: TrendingUp },
-  { name: "ナレッジ管理", path: "/knowledge", icon: BookOpen },
-  { name: "AIチャット", path: "/copilot", icon: MessageSquare },
+  { name: "ダッシュボード", path: "/dashboard", icon: LayoutDashboard },
+  { name: "CR作成", path: "/dashboard/cr-creator", icon: Clapperboard },
+  { name: "市場分析", path: "/dashboard/market", icon: TrendingUp },
+  { name: "ナレッジ管理", path: "/dashboard/knowledge", icon: BookOpen },
+  { name: "AIチャット", path: "/dashboard/copilot", icon: MessageSquare },
 ];
 
 export default function Sidebar() {
@@ -42,7 +42,7 @@ export default function Sidebar() {
           <NavLink
             key={item.path}
             to={item.path}
-            end={item.path === "/"}
+            end={item.path === "/dashboard"}
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
