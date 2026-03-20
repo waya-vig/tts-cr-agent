@@ -60,7 +60,10 @@ export default function Login() {
 
       <Card className="relative w-full max-w-md border-border/50 bg-card/80 backdrop-blur-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">TTS CR Agent</CardTitle>
+          <div className="flex justify-center mb-2">
+            <img src="/vigsella-logo.png" alt="vigSella" className="h-12 w-12 rounded" />
+          </div>
+          <CardTitle className="text-2xl font-bold">vigSella</CardTitle>
           <CardDescription>
             {isRegister ? "アカウントを作成" : "アカウントにログイン"}
           </CardDescription>
@@ -116,7 +119,7 @@ export default function Login() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="justify-center">
+        <CardFooter className="flex-col gap-2">
           <p className="text-sm text-muted-foreground">
             {isRegister
               ? "既にアカウントをお持ちですか？"
@@ -133,6 +136,11 @@ export default function Login() {
               {isRegister ? "ログイン" : "新規登録"}
             </Button>
           </p>
+          <div className="flex gap-3 text-xs text-muted-foreground">
+            <a href="/terms" className="hover:underline">利用規約</a>
+            <span>|</span>
+            <a href="/privacy" className="hover:underline">プライバシーポリシー</a>
+          </div>
         </CardFooter>
       </Card>
     </div>

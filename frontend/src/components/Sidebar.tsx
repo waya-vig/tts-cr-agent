@@ -31,9 +31,10 @@ export default function Sidebar() {
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar">
-      <div className="flex h-16 items-center border-b border-sidebar-border px-6">
+      <div className="flex h-16 items-center border-b border-sidebar-border px-4">
+        <img src="/vigsella-logo.png" alt="vigSella" className="h-8 w-8 rounded mr-2" />
         <h2 className="text-lg font-bold text-sidebar-foreground tracking-tight">
-          TTS CR Agent
+          vigSella
         </h2>
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4">

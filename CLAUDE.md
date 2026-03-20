@@ -1,7 +1,7 @@
-# TTS CR Agent - CLAUDE.md
+# vigSella - CLAUDE.md
 
 ## Project Overview
-TikTok Shopセラー向けのAIクリエイティブ制作支援SaaS。
+vigSella（ヴィグセラ）- Vig Inc.が提供するTikTok Shopセラー向けAIクリエイティブ制作支援SaaS。
 「縦型動画が作れない」セラーの課題を、市場データ×AIで解決する。
 
 ### プロダクトの柱
