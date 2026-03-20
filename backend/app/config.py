@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     tts_app_key: str = ""
     tts_app_secret: str = ""
 
+    # TikTok Login Kit (OAuth)
+    tiktok_client_key: str = ""
+    tiktok_client_secret: str = ""
+    tiktok_redirect_uri: str = "https://main.dkwittosus0ho.amplifyapp.com/auth/tiktok/callback"
+
     # FastMoss Open API
     fastmoss_client_id: str = ""
     fastmoss_client_secret: str = ""

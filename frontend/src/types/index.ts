@@ -10,6 +10,9 @@ export interface User {
   company_name: string | null;
   plan: PlanType;
   created_at: string;
+  tiktok_open_id: string | null;
+  tiktok_display_name: string | null;
+  tiktok_avatar_url: string | null;
 }
 
 export interface Token {

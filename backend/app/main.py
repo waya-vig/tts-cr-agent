@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import admin_knowledge, auth, copilot, cr, fastmoss, health, knowledge, market, shops
+from app.routers import admin_knowledge, auth, copilot, cr, fastmoss, health, knowledge, market, shops, tiktok_auth
 
 
 @asynccontextmanager
@@ -52,6 +52,7 @@ app.include_router(knowledge.router, prefix="/api/v1")
 app.include_router(copilot.router, prefix="/api/v1")
 app.include_router(admin_knowledge.router, prefix="/api/v1")
 app.include_router(fastmoss.router, prefix="/api/v1")
+app.include_router(tiktok_auth.router, prefix="/api/v1")
 
 
 @app.get("/")

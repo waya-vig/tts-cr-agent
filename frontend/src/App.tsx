@@ -11,6 +11,7 @@ import Copilot from "./pages/Copilot";
 import Login from "./pages/Login";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import TikTokCallback from "./pages/TikTokCallback";
 import { useAuthStore } from "./stores/authStore";
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
+        <Route path="/auth/tiktok/callback" element={<TikTokCallback />} />
         <Route
           path="/dashboard"
           element={

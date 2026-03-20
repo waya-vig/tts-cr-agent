@@ -23,6 +23,9 @@ class UserResponse(BaseModel):
     company_name: str | None
     plan: PlanType
     created_at: datetime
+    tiktok_open_id: str | None = None
+    tiktok_display_name: str | None = None
+    tiktok_avatar_url: str | None = None
 
     model_config = {"from_attributes": True}
 

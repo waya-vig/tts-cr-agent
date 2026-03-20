@@ -27,6 +27,11 @@ class User(Base):
     )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     company_name: Mapped[str | None] = mapped_column(String(255))
+
+    # TikTok OAuth
+    tiktok_open_id: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
+    tiktok_display_name: Mapped[str | None] = mapped_column(String(255))
+    tiktok_avatar_url: Mapped[str | None] = mapped_column(String(1024))
     plan: Mapped[PlanType] = mapped_column(
         Enum(PlanType), default=PlanType.FREE, nullable=False
     )
