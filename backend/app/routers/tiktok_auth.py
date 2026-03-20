@@ -1,5 +1,6 @@
-"""TikTok Login Kit OAuth endpoints."""
+"""TikTok Login Kit OAuth endpoints with PKCE support."""
 
+import hashlib
 import secrets
 from urllib.parse import urlencode
 
@@ -22,6 +23,20 @@ TIKTOK_USER_INFO_URL = "https://open.tiktokapis.com/v2/user/info/"
 
 SCOPES = "user.info.basic,user.info.profile,user.info.stats,video.list"
 
+# In-memory store for PKCE code_verifiers (keyed by state)
+# In production, use Redis or DB. This works for single-instance.
+_pkce_store: dict[str, str] = {}
+
+
+def _generate_pkce() -> tuple[str, str]:
+    """Generate PKCE code_verifier and code_challenge (S256)."""
+    code_verifier = secrets.token_urlsafe(64)[:128]
+    digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+    # base64url encode without padding
+    import base64
+    code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    return code_verifier, code_challenge
+
 
 class TikTokAuthURL(BaseModel):
     url: str
@@ -42,14 +57,21 @@ class TikTokAuthResponse(BaseModel):
 
 @router.get("/authorize", response_model=TikTokAuthURL)
 async def get_tiktok_auth_url() -> TikTokAuthURL:
-    """Generate TikTok OAuth authorization URL."""
+    """Generate TikTok OAuth authorization URL with PKCE."""
     state = secrets.token_urlsafe(32)
+    code_verifier, code_challenge = _generate_pkce()
+
+    # Store code_verifier for later use in callback
+    _pkce_store[state] = code_verifier
+
     params = {
         "client_key": settings.tiktok_client_key,
         "scope": SCOPES,
         "response_type": "code",
         "redirect_uri": settings.tiktok_redirect_uri,
         "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
     }
     url = f"{TIKTOK_AUTH_URL}?{urlencode(params)}"
     return TikTokAuthURL(url=url, state=state)
@@ -62,6 +84,9 @@ async def tiktok_callback(
 ) -> TikTokAuthResponse:
     """Exchange TikTok authorization code for access token and login/register user."""
 
+    # Retrieve PKCE code_verifier
+    code_verifier = _pkce_store.pop(body.state, "")
+
     # 1. Exchange code for TikTok access token
     async with httpx.AsyncClient() as client:
         token_resp = await client.post(
@@ -72,6 +97,7 @@ async def tiktok_callback(
                 "code": body.code,
                 "grant_type": "authorization_code",
                 "redirect_uri": settings.tiktok_redirect_uri,
+                "code_verifier": code_verifier,
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
